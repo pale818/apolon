@@ -1,0 +1,12 @@
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\bin\Debug\net8.0\CustomORM.deps.json
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\bin\Debug\net8.0\CustomORM.dll
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\bin\Debug\net8.0\CustomORM.pdb
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\CustomORM.csproj.AssemblyReference.cache
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\CustomORM.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\CustomORM.AssemblyInfoInputs.cache
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\CustomORM.AssemblyInfo.cs
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\CustomORM.csproj.CoreCompileInputs.cache
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\CustomORM.dll
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\refint\CustomORM.dll
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\CustomORM.pdb
+C:\Users\Dario\source\repos\PAOLA\apolon\CustomORM\obj\Debug\net8.0\ref\CustomORM.dll
