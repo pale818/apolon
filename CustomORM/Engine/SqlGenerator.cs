@@ -32,10 +32,7 @@ namespace CustomORM.Engine
                 var colAttr = prop.GetCustomAttribute<ColumnAttribute>();
                 if (colAttr == null) continue;
 
-                var pkAttr = prop.GetCustomAttribute<KeyAttribute>();
-
-
-                
+                var pkAttr = prop.GetCustomAttribute<KeyAttribute>();           
 
                 string columnDef;
                 
@@ -49,10 +46,17 @@ namespace CustomORM.Engine
                     string sqlValueType = GetSqlType(prop.PropertyType);
                     columnDef = $"{colAttr.Name} {sqlValueType}";
 
+                    // 1. UNIQUE Constraint
+                    if (colAttr.IsUnique)
+                        columnDef += " UNIQUE";
+
+                    // 2. NOT NULL Constraint
                     if (!colAttr.IsNullable)
-                    {
                         columnDef += " NOT NULL";
-                    }
+
+                    // 3. DEFAULT Constraint
+                    if (!string.IsNullOrEmpty(colAttr.DefaultValue))
+                        columnDef += $" DEFAULT {colAttr.DefaultValue}";
                 }
 
                 columnDefinitions.Add(columnDef);
@@ -95,7 +99,7 @@ namespace CustomORM.Engine
 
             var valuesSql = string.Join(", ", values);
 
-            return $"INSERT INTO {tableAttr.Name} ({columnNames}) VALUES ({valuesSql});";
+            return $"INSERT INTO {tableAttr.Name} ({columnNames}) VALUES ({valuesSql}) RETURNING id;";
         }
 
 
@@ -119,7 +123,15 @@ namespace CustomORM.Engine
                 // SMART VALUE MAPPING
                 string formattedVal;
                 if (val == null) formattedVal = "NULL";
-                else if (val is string || val is DateTime) formattedVal = $"'{val.ToString().Replace("'", "''")}'";
+                else if (val is string)
+                {
+                    formattedVal = $"'{val.ToString().Replace("'", "''")}'";
+                }
+                else if (val is DateTime dt)
+                {
+                    // Forces the date into a format Postgres always understands: 2025-12-26 15:30:00
+                    formattedVal = $"'{dt.ToString("yyyy-MM-dd HH:mm:ss")}'";
+                }
                 else if (val is bool b) formattedVal = b ? "TRUE" : "FALSE";
                 else formattedVal = val.ToString();
 
@@ -210,6 +222,44 @@ namespace CustomORM.Engine
             if (type == typeof(string)) return "VARCHAR(255)";
             if (type == typeof(DateTime)) return "TIMESTAMP"; 
             return "TEXT";
+        }
+
+
+
+        //FILTER SEARCHING
+
+        public string GenerateSelectSql<T>(string filterColumn = null, object filterValue = null, string orderByColumn = null, bool ascending = true)
+        {
+            var type = typeof(T);
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+
+            string sql = $"SELECT * FROM {tableAttr.Name}";
+
+            // Handling Filtering (WHERE)
+            if (!string.IsNullOrEmpty(filterColumn) && filterValue != null)
+            {
+                if (filterValue is string strVal)
+                {
+                   
+                    sql += $" WHERE {filterColumn} LIKE '{strVal.Replace("'", "''")}%'";
+                }
+                else
+                {
+                    string formattedValue = (filterValue is DateTime dt)
+                        ? $"'{dt.ToString("yyyy-MM-dd HH:mm:ss")}'"
+                        : filterValue.ToString();
+                    sql += $" WHERE {filterColumn} = {formattedValue}";
+                }
+            }
+
+            // Handling Ordering (ORDER BY)
+            if (!string.IsNullOrEmpty(orderByColumn))
+            {
+                string direction = ascending ? "ASC" : "DESC";
+                sql += $" ORDER BY {orderByColumn} {direction}";
+            }
+
+            return sql + ";";
         }
 
     }

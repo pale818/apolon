@@ -10,9 +10,10 @@ namespace CustomORM.Attributes
     public class ColumnAttribute : Attribute
     {
         public string Name { get; }
-        public string DbType { get; set; } // e.g., "VARCHAR(100)"
+        public string DbType { get; set; } 
         public bool IsNullable { get; set; } = true;
-
+        public string DefaultValue { get; set; } = null; 
+        public bool IsUnique { get; set; } = false;
         public ColumnAttribute(string name)
         {
             Name = name;

@@ -20,5 +20,13 @@ namespace MedicalSystemApp
         [Column("age", DbType = "INT")] // Added DbType
         public int Age { get; set; }
 
+        [Column("email", IsUnique = true, IsNullable = false)]
+        public string Email { get; set; } // No two patients can have the same email
+
+        // --- NAVIGATIONAL PROPERTIES ---
+        // These are NOT [Column] because they don't exist in the 'patients' table
+        public List<Checkup> Checkups { get; set; } = new List<Checkup>();
+        public List<Prescription> Prescriptions { get; set; } = new List<Prescription>();
+
     }
 }

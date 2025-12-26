@@ -24,6 +24,9 @@ namespace MedicalSystemApp
 
         [Column("doctor_notes")]
         public string Notes { get; set; }
+
+        [Column("checkup_type", DefaultValue = "'GP'")]
+        public string Type { get; set; } // Defaults to 'GP' if nothing is entered [cite: 53]
     }
 
 }
