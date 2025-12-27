@@ -262,18 +262,39 @@ namespace CustomORM.Engine
         private T MapAliased<T>(NpgsqlDataReader reader, string prefix) where T : new()
         {
             var obj = new T();
-            var props = typeof(T).GetProperties().Where(p => p.GetCustomAttribute<ColumnAttribute>() != null);
+            // Get all properties that have the ColumnAttribute
+            var props = typeof(T).GetProperties()
+                .Where(p => p.GetCustomAttribute<ColumnAttribute>() != null)
+                .ToList();
 
-            // Check if the primary key for this sub-object exists in this row
-            var pk = props.First(p => p.GetCustomAttribute<KeyAttribute>() != null);
+            // Find the primary key for this sub-object to see if data exists in this row
+            var pk = props.FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null);
+            if (pk == null) return default;
+
             string pkAlias = $"{prefix}_{pk.GetCustomAttribute<ColumnAttribute>().Name}";
+
+            // If the ID is null in the JOIN result, it means there is no related record for this row
             if (reader[pkAlias] == DBNull.Value) return default;
 
             foreach (var prop in props)
             {
                 string alias = $"{prefix}_{prop.GetCustomAttribute<ColumnAttribute>().Name}";
-                var val = reader[alias];
-                if (val != DBNull.Value) prop.SetValue(obj, Convert.ChangeType(val, prop.PropertyType));
+                var dbValue = reader[alias];
+
+                if (dbValue != DBNull.Value)
+                {
+                    // NEW: Explicitly handle Enum types for the Medical Scenario types
+                    if (prop.PropertyType.IsEnum)
+                    {
+                        // Converts the string from Postgres (e.g., "BLOOD") back to the CheckupType Enum
+                        prop.SetValue(obj, Enum.Parse(prop.PropertyType, dbValue.ToString()));
+                    }
+                    else
+                    {
+                        // Standard conversion for INT, VARCHAR, DATETIME, etc.
+                        prop.SetValue(obj, Convert.ChangeType(dbValue, prop.PropertyType));
+                    }
+                }
             }
             return obj;
         }

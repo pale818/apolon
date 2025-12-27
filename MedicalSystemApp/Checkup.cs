@@ -26,7 +26,12 @@ namespace MedicalSystemApp
         public string Notes { get; set; }
 
         [Column("checkup_type", DefaultValue = "'GP'")]
-        public string Type { get; set; } // Defaults to 'GP' if nothing is entered [cite: 53]
+        public CheckupType Type { get; set; }
     }
 
+
+    public enum CheckupType
+    {
+        GP, BLOOD, X_RAY, CT, MRI, ULTRA, EKG, ECHO, EYE, DERM, DENTA, MAMMO, EEG
+    }
 }

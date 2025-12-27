@@ -91,11 +91,33 @@ namespace MedicalSystemApp
                         {
                             Console.Write("Enter Patient ID for this checkup: ");
                             int pId = int.Parse(Console.ReadLine());
+
                             Console.Write("Enter Doctor Notes: ");
                             string notes = Console.ReadLine();
-                            Console.Write("Enter Checkup Type (GP, MRI, X-RAY, etc.): ");
-                            string type = Console.ReadLine();
-                            db.Insert(new Checkup { PatientId = pId, Date = DateTime.Now, Notes = notes, Type= type });
+
+                            // Showing the user the numeric options for the required medical types
+                            Console.WriteLine("Select Checkup Type:");
+                            Console.WriteLine("0:GP, 1:BLOOD, 2:X_RAY, 3:CT, 4:MRI, 5:ULTRA, 6:EKG, 7:ECHO, 8:EYE, 9:DERM, 10:DENTA, 11:MAMMO, 12:EEG");
+                            Console.Write("Enter choice (0-12): ");
+
+                            if (int.TryParse(Console.ReadLine(), out int enumIndex) && Enum.IsDefined(typeof(CheckupType), enumIndex))
+                            {
+                                // Cast the integer directly to the Enum type
+                                CheckupType selectedType = (CheckupType)enumIndex;
+
+                                db.Insert(new Checkup
+                                {
+                                    PatientId = pId,
+                                    Date = DateTime.Now,
+                                    Notes = notes,
+                                    Type = selectedType
+                                });
+                            }
+                            else
+                            {
+                                Console.WriteLine("Invalid choice. Defaulting to GP.");
+                                db.Insert(new Checkup { PatientId = pId, Date = DateTime.Now, Notes = notes, Type = CheckupType.GP });
+                            }
                         }
                         else if (typeChoice == "C")
                         {
@@ -124,10 +146,35 @@ namespace MedicalSystemApp
                         }
                         else if (updChoice == "B")
                         {
-                            Console.Write("Enter Checkup ID to update: "); int id = int.Parse(Console.ReadLine());
-                            Console.Write("New Notes: "); string notes = Console.ReadLine();
-                            Console.Write("New Type: "); string type = Console.ReadLine();
-                            db.Update(new Checkup { Id = id, Date = DateTime.Now, Notes = notes, Type = type});
+                            Console.Write("Enter Checkup ID to update: ");
+                            int id = int.Parse(Console.ReadLine());
+
+                            Console.Write("New Notes: ");
+                            string notes = Console.ReadLine();
+
+                            // Show the options to the user so they know which number to pick
+                            Console.WriteLine("Select New Checkup Type:");
+                            Console.WriteLine("0:GP, 1:BLOOD, 2:X_RAY, 3:CT, 4:MRI, 5:ULTRA, 6:EKG, 7:ECHO, 8:EYE, 9:DERM, 10:DENTA, 11:MAMMO, 12:EEG");
+                            Console.Write("Enter choice (0-12): ");
+
+                            if (int.TryParse(Console.ReadLine(), out int enumIndex) && Enum.IsDefined(typeof(CheckupType), enumIndex))
+                            {
+                                CheckupType selectedType = (CheckupType)enumIndex;
+
+                                // The 'Type' property now receives a CheckupType, not a string
+                                db.Update(new Checkup
+                                {
+                                    Id = id,
+                                    Date = DateTime.Now,
+                                    Notes = notes,
+                                    Type = selectedType
+                                });
+                                Console.WriteLine("Update successful.");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Invalid type selected. Update aborted.");
+                            }
                         }
                         else if (updChoice == "C")
                         {

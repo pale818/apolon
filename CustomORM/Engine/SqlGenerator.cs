@@ -94,6 +94,11 @@ namespace CustomORM.Engine
 
                 if (val is bool b) return b ? "TRUE" : "FALSE";
 
+                if (val is Enum e)
+                {
+                    return $"'{e.ToString()}'"; // Converts the Enum (e.g., CheckupType.MRI) to the string "'MRI'"
+                }
+
                 return val.ToString();
             });
 
@@ -133,6 +138,11 @@ namespace CustomORM.Engine
                     formattedVal = $"'{dt.ToString("yyyy-MM-dd HH:mm:ss")}'";
                 }
                 else if (val is bool b) formattedVal = b ? "TRUE" : "FALSE";
+
+                else if (val is Enum e)
+                {
+                    return $"'{e.ToString()}'"; // Converts the Enum (e.g., CheckupType.MRI) to the string "'MRI'"
+                }
                 else formattedVal = val.ToString();
 
 
