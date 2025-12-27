@@ -262,5 +262,38 @@ namespace CustomORM.Engine
             return sql + ";";
         }
 
+
+        public string GenerateTripleJoinSql<T, T1, T2>(string foreignKey1, string foreignKey2, int id)
+        {
+            var mainType = typeof(T);
+            var type1 = typeof(T1);
+            var type2 = typeof(T2);
+
+            var mainTable = mainType.GetCustomAttribute<TableAttribute>().Name;
+            var table1 = type1.GetCustomAttribute<TableAttribute>().Name;
+            var table2 = type2.GetCustomAttribute<TableAttribute>().Name;
+
+            // Helper to get columns with aliases to avoid "id" conflicts
+            // e.g., patients.id AS p_id, checkups.id AS c_id
+            string GetAliasedColumns(Type t, string prefix)
+            {
+                var props = t.GetProperties()
+                    .Where(p => p.GetCustomAttribute<ColumnAttribute>() != null)
+                    .Select(p => $"{prefix}.{p.GetCustomAttribute<ColumnAttribute>().Name} AS {prefix}_{p.GetCustomAttribute<ColumnAttribute>().Name}");
+                return string.Join(", ", props);
+            }
+
+            string sql = $@"
+                SELECT {GetAliasedColumns(mainType, "p")}, 
+                       {GetAliasedColumns(type1, "c")}, 
+                       {GetAliasedColumns(type2, "pr")}
+                FROM {mainTable} p
+                LEFT JOIN {table1} c ON p.id = c.{foreignKey1}
+                LEFT JOIN {table2} pr ON p.id = pr.{foreignKey2}
+                WHERE p.id = {id};";
+
+            return sql;
+        }
+
     }
 }

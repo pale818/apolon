@@ -51,11 +51,12 @@ namespace MedicalSystemApp
                 Console.WriteLine("4. Delete ");
                 Console.WriteLine("5. List All ");
                 Console.WriteLine("6. Filter by name ");
-                Console.WriteLine("7. Patient record");
-                Console.WriteLine("8. Add Transaction");
-                Console.WriteLine("9. Delete Transaction");
-                Console.WriteLine("10. Run Migrations (Add Email Column)");
-                Console.WriteLine("11. Rollback Last Migration");
+                Console.WriteLine("7. Patient record - Lazy loading");
+                Console.WriteLine("8. Patient record - Eager loading");
+                Console.WriteLine("9. Add Transaction");
+                Console.WriteLine("10. Delete Transaction");
+                Console.WriteLine("11. Run Migrations (Add Email Column)");
+                Console.WriteLine("12. Rollback Last Migration");
                 Console.WriteLine("0. Exit");
                 Console.Write("Choose an option: ");
                 string choice = Console.ReadLine();
@@ -186,23 +187,47 @@ namespace MedicalSystemApp
                         }
                         break;
 
-                    case "7":
-                        Console.Write("Enter Patient ID to view Full Medical Record: ");
-                        if (int.TryParse(Console.ReadLine(), out int searchId))
+                    case "7": // LAZY LOADING DEMO
+                        Console.Write("Enter Patient ID for LAZY fetch: ");
+                        if (int.TryParse(Console.ReadLine(), out int lazyId))
                         {
-                        
-                            var p = db.GetEntityWithDetails<Patient, Checkup>(searchId, "patient_id");
+                            // STEP 1: Fetch ONLY the patient (Initial Lazy Load)
+                            var patients = db.GetWithFilter<Patient>("id", lazyId);
+                            var p = patients.FirstOrDefault();
 
                             if (p != null)
                             {
-                                Console.WriteLine($"\n--- MEDICAL FILE: {p.FirstName} ---");
+                                Console.WriteLine($"\n--- [LAZY] PATIENT RECORD ---");
+                                Console.WriteLine($"Name: {p.FirstName}");
                                 Console.WriteLine($"Email: {p.Email}");
-                                Console.WriteLine($"Age: {p.Age}");
+                                // At this point, p.Checkups is an empty list
+                                Console.WriteLine($"Checkups currently in memory: {p.Checkups.Count}");
 
-                                Console.WriteLine("\nCHECKUP HISTORY:");
-                                foreach (var c in p.Checkups)
+                                Console.Write("\nDo you want to view this patient's checkup details? (y/n): ");
+                                string c = Console.ReadLine()?.ToLower();
+
+                                if (c == "y")
                                 {
-                                    Console.WriteLine($"- {c.Date:yyyy-MM-dd} [{c.Type}]: {c.Notes}");
+                                    Console.WriteLine("Fetching details from database...");
+                                    // STEP 2: The "On-Demand" fetch triggered by user choice
+                                    p.Checkups = db.GetWithFilter<Checkup>("patient_id", p.Id);
+
+                                    Console.WriteLine($"\n--- CHECKUP HISTORY ---");
+                                    if (p.Checkups.Any())
+                                    {
+                                        foreach (var ch in p.Checkups)
+                                        {
+                                            Console.WriteLine($"- {ch.Date:yyyy-MM-dd} [{ch.Type}]: {ch.Notes}");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("No checkups found for this patient.");
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine("Returning to menu without loading details.");
                                 }
                             }
                             else
@@ -212,7 +237,29 @@ namespace MedicalSystemApp
                         }
                         break;
 
-                    case "8":
+                    case "8": // Proper Eager Loading with Generic JOIN
+                        Console.Write("Enter Patient ID for Eager JOIN fetch: ");
+                        if (int.TryParse(Console.ReadLine(), out int eagerId))
+                        {
+                            // We pass the Types and the Foreign Key column names
+                            // This is generic: it doesn't know about "Patient" internally, it uses Reflection
+                            var p = db.GetEagerJoined<Patient, Checkup, Prescription>(eagerId, "patient_id", "patient_id");
+
+                            if (p != null)
+                            {
+                                Console.WriteLine($"\n[EAGER JOIN] MEDICAL FILE: {p.FirstName} (ID: {p.Id})");
+                                Console.WriteLine($"Checkups found: {p.Checkups.Count}");
+                                Console.WriteLine($"Prescriptions found: {p.Prescriptions.Count}");
+
+                                Console.WriteLine("\n--- HISTORY ---");
+                                p.Checkups.ForEach(c => Console.WriteLine($"Checkup: {c.Date:yyyy-MM-dd} - {c.Type}"));
+                                p.Prescriptions.ForEach(pr => Console.WriteLine($"Meds: {pr.Medication} - {pr.Dosage}"));
+                            }
+                            else { Console.WriteLine("Patient not found."); }
+                        }
+                        break;
+
+                    case "9":
                         {
                             Console.WriteLine("--- TRANSACTION: REGISTER NEW PATIENT WITH CHECKUP ---");
                             Console.Write("Patient Name: ");
@@ -239,7 +286,7 @@ namespace MedicalSystemApp
                         }
                         break;
 
-                    case "9":
+                    case "10":
                         {
                             Console.WriteLine("\n--- TRANSACTION: DELETE PATIENT & ALL HISTORY ---");
                             Console.Write("Enter Patient ID to PERMANENTLY delete: ");
@@ -276,7 +323,7 @@ namespace MedicalSystemApp
                         }
                         break;
 
-                    case "10":
+                    case "11":
                         {
                             var migrator = new MigrationManager(myConnectionString);
                             // Demonstration: Adding a column that wasn't there before
@@ -285,7 +332,7 @@ namespace MedicalSystemApp
                         }
                         break;
                     
-                    case "11":
+                    case "12":
                         {
                             //var migrator = new MigrationManager(myConnectionString);
                             //migrator.RollbackLastMigration();

@@ -210,6 +210,75 @@ namespace CustomORM.Engine
             return entity;
         }
 
+        public T GetEagerJoined<T, T1, T2>(int id, string fk1, string fk2)
+            where T : new() where T1 : new() where T2 : new()
+        {
+            string sql = generator.GenerateTripleJoinSql<T, T1, T2>(fk1, fk2, id);
+            T mainEntity = default;
+
+            // Reflection to find the List properties on the Patient class
+            var listProp1 = typeof(T).GetProperties().FirstOrDefault(p => p.PropertyType == typeof(List<T1>));
+            var listProp2 = typeof(T).GetProperties().FirstOrDefault(p => p.PropertyType == typeof(List<T2>));
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            conn.Open();
+            using var cmd = new NpgsqlCommand(sql, conn);
+            using var reader = cmd.ExecuteReader();
+
+            while (reader.Read())
+            {
+                if (mainEntity == null) mainEntity = MapAliased<T>(reader, "p");
+
+                // Map related entities from the current row
+                var item1 = MapAliased<T1>(reader, "c");
+                var item2 = MapAliased<T2>(reader, "pr");
+
+                // Add to lists if they exist and aren't duplicates
+                if (item1 != null && listProp1 != null)
+                {
+                    var list = (List<T1>)listProp1.GetValue(mainEntity);
+                    // Get ID property of the child to check for duplicates
+                    var idProp = typeof(T1).GetProperties().First(p => p.GetCustomAttribute<KeyAttribute>() != null);
+                    var itemId = idProp.GetValue(item1);
+
+                    if (!list.Any(x => idProp.GetValue(x).Equals(itemId)))
+                        list.Add(item1);
+                }
+
+                if (item2 != null && listProp2 != null)
+                {
+                    var list = (List<T2>)listProp2.GetValue(mainEntity);
+                    var idProp = typeof(T2).GetProperties().First(p => p.GetCustomAttribute<KeyAttribute>() != null);
+                    var itemId = idProp.GetValue(item2);
+
+                    if (!list.Any(x => idProp.GetValue(x).Equals(itemId)))
+                        list.Add(item2);
+                }
+            }
+            return mainEntity;
+        }
+
+        // Helper to map aliased columns back to objects
+        private T MapAliased<T>(NpgsqlDataReader reader, string prefix) where T : new()
+        {
+            var obj = new T();
+            var props = typeof(T).GetProperties().Where(p => p.GetCustomAttribute<ColumnAttribute>() != null);
+
+            // Check if the primary key for this sub-object exists in this row
+            var pk = props.First(p => p.GetCustomAttribute<KeyAttribute>() != null);
+            string pkAlias = $"{prefix}_{pk.GetCustomAttribute<ColumnAttribute>().Name}";
+            if (reader[pkAlias] == DBNull.Value) return default;
+
+            foreach (var prop in props)
+            {
+                string alias = $"{prefix}_{prop.GetCustomAttribute<ColumnAttribute>().Name}";
+                var val = reader[alias];
+                if (val != DBNull.Value) prop.SetValue(obj, Convert.ChangeType(val, prop.PropertyType));
+            }
+            return obj;
+        }
+
+
 
         //TRANSACTIONS
 
