@@ -7,6 +7,11 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomORM", "CustomORM\Cust
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MedicalSystemApp", "MedicalSystemApp\MedicalSystemApp.csproj", "{48ED9083-5FE0-FB7A-F64F-40D97BF9FF58}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "MIGRATION", "MIGRATION", "{2FB18269-E787-4BE5-A47D-7328282E178D}"
+	ProjectSection(SolutionItems) = preProject
+		migration.sql = migration.sql
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
