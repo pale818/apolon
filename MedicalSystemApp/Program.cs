@@ -127,7 +127,9 @@ namespace MedicalSystemApp
                             string med = Console.ReadLine();
                             Console.Write("Dosage: ");
                             string dose = Console.ReadLine();
-                            db.Insert(new Prescription { PatientId = pId, Medication = med, Dosage = dose });
+                            Console.Write("Start Date: ");
+                            DateTime startDate = DateTime.Parse(Console.ReadLine());
+                            db.Insert(new Prescription { PatientId = pId, Medication = med, Dosage = dose, StartDate = startDate });
                         }
                         break;
 
@@ -138,49 +140,64 @@ namespace MedicalSystemApp
 
                         if (updChoice == "A")
                         {
-                            Console.Write("Enter Patient ID to update: "); int id = int.Parse(Console.ReadLine());
-                            Console.Write("New Name: "); string n = Console.ReadLine();
-                            Console.Write("New Age: "); int a = int.Parse(Console.ReadLine());
-                            Console.Write("New Email: "); string e = Console.ReadLine();
-                            db.Update(new Patient { Id = id, FirstName = n, Age = a ,Email = e});
+                            Console.Write("Enter Patient ID to update: ");
+                            int id = int.Parse(Console.ReadLine());
+
+                            // Step 1: Fetch the existing record (Snapshot)
+                            var patient = db.GetWithFilter<Patient>("id", id).FirstOrDefault();
+                            if (patient == null) { Console.WriteLine("Patient not found."); break; }
+
+                            Console.WriteLine($"Updating Patient: {patient.FirstName}");
+                            Console.WriteLine("1. Update Name | 2. Update Age | 3. Update Email | 4. Update All");
+                            string part = Console.ReadLine();
+
+                            // Step 2: Update only the chosen attributes
+                            if (part == "1" || part == "4") { Console.Write("New Name: "); patient.FirstName = Console.ReadLine(); }
+                            if (part == "2" || part == "4") { Console.Write("New Age: "); patient.Age = int.Parse(Console.ReadLine()); }
+                            if (part == "3" || part == "4") { Console.Write("New Email: "); patient.Email = Console.ReadLine(); }
+
+                            // Step 3: Send the modified object back to DB
+                            db.Update(patient);
                         }
                         else if (updChoice == "B")
                         {
                             Console.Write("Enter Checkup ID to update: ");
                             int id = int.Parse(Console.ReadLine());
 
-                            Console.Write("New Notes: ");
-                            string notes = Console.ReadLine();
+                            // Step 1: Fetch existing
+                            var checkup = db.GetWithFilter<Checkup>("id", id).FirstOrDefault();
+                            if (checkup == null) { Console.WriteLine("Checkup not found."); break; }
 
-                            // Show the options to the user so they know which number to pick
-                            Console.WriteLine("Select New Checkup Type:");
-                            Console.WriteLine("0:GP, 1:BLOOD, 2:X_RAY, 3:CT, 4:MRI, 5:ULTRA, 6:EKG, 7:ECHO, 8:EYE, 9:DERM, 10:DENTA, 11:MAMMO, 12:EEG");
-                            Console.Write("Enter choice (0-12): ");
+                            Console.WriteLine("1. Update Notes | 2. Update Type | 3. Update Both");
+                            string part = Console.ReadLine();
 
-                            if (int.TryParse(Console.ReadLine(), out int enumIndex) && Enum.IsDefined(typeof(CheckupType), enumIndex))
+                            if (part == "1" || part == "3") { Console.Write("New Notes: "); checkup.Notes = Console.ReadLine(); }
+                            if (part == "2" || part == "3")
                             {
-                                CheckupType selectedType = (CheckupType)enumIndex;
+                                Console.WriteLine("0:GP, 1:BLOOD, 2:X_RAY, 3:CT, 4:MRI, 5:ULTRA, 6:EKG, 7:ECHO, 8:EYE, 9:DERM, 10:DENTA, 11:MAMMO, 12:EEG");
+                                Console.Write("Enter choice (0-12): ");
+                                if (int.TryParse(Console.ReadLine(), out int enumIndex))
+                                    checkup.Type = (CheckupType)enumIndex;
+                            }
 
-                                // The 'Type' property now receives a CheckupType, not a string
-                                db.Update(new Checkup
-                                {
-                                    Id = id,
-                                    Date = DateTime.Now,
-                                    Notes = notes,
-                                    Type = selectedType
-                                });
-                                Console.WriteLine("Update successful.");
-                            }
-                            else
-                            {
-                                Console.WriteLine("Invalid type selected. Update aborted.");
-                            }
+                            db.Update(checkup);
                         }
                         else if (updChoice == "C")
                         {
-                            Console.Write("Enter Prescription ID to update: "); int id = int.Parse(Console.ReadLine());
-                            Console.Write("New Dosage: "); string dose = Console.ReadLine();
-                            db.Update(new Prescription { Id = id, Dosage = dose });
+                            Console.Write("Enter Prescription ID to update: ");
+                            int id = int.Parse(Console.ReadLine());
+
+                            // Step 1: Fetch existing
+                            var pres = db.GetWithFilter<Prescription>("id", id).FirstOrDefault();
+                            if (pres == null) { Console.WriteLine("Prescription not found."); break; }
+
+                            Console.WriteLine("1. Update Medication | 2. Update Dosage | 3. Update Both");
+                            string part = Console.ReadLine();
+
+                            if (part == "1" || part == "3") { Console.Write("New Medication: "); pres.Medication = Console.ReadLine(); }
+                            if (part == "2" || part == "3") { Console.Write("New Dosage: "); pres.Dosage = Console.ReadLine(); }
+
+                            db.Update(pres);
                         }
                         break;
 
@@ -300,7 +317,7 @@ namespace MedicalSystemApp
 
                                 Console.WriteLine("\n--- HISTORY ---");
                                 p.Checkups.ForEach(c => Console.WriteLine($"Checkup: {c.Date:yyyy-MM-dd} - {c.Type}"));
-                                p.Prescriptions.ForEach(pr => Console.WriteLine($"Meds: {pr.Medication} - {pr.Dosage}"));
+                                p.Prescriptions.ForEach(pr => Console.WriteLine($"Meds: {pr.Medication} - Dasage: {pr.Dosage} - Start date: {pr.StartDate} "));
                             }
                             else { Console.WriteLine("Patient not found."); }
                         }

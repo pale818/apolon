@@ -47,6 +47,7 @@ namespace CustomORM.Engine
                         cmd.ExecuteNonQuery();
                     }
                 }
+                Console.WriteLine($"SQL: {sql}");
                 Console.WriteLine("SUCCESS: Table created in Supabase!");
             }
             catch (Exception ex)
