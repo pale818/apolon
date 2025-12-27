@@ -67,8 +67,6 @@ namespace CustomORM.Engine
             // Only used for non-transactional single inserts
             using (var conn = new NpgsqlConnection(_connectionString))
             {
-                Console.WriteLine($"DEBUG: INSERT CONN == NULL");
-
                 conn.Open();
                 using (var cmd = new NpgsqlCommand(sql, conn))
                 {
@@ -230,16 +228,39 @@ namespace CustomORM.Engine
                 using var commit = new NpgsqlCommand("COMMIT", conn);
                 commit.ExecuteNonQuery();
             }
-            catch
+            catch (Exception ex)
             {
+                Console.WriteLine($"Logic failed: {ex.Message}. Rolling back...");
                 try
                 {
-                    using var rollback = new NpgsqlCommand("ROLLBACK", conn);
-                    rollback.ExecuteNonQuery();
+                    // Only rollback if the connection is still open
+                    if (conn.State == System.Data.ConnectionState.Open)
+                    {
+                        using var rollback = new NpgsqlCommand("ROLLBACK", conn);
+                        rollback.ExecuteNonQuery();
+                    }
                 }
-                catch { }
-                throw;
+                catch (Exception rollbackEx)
+                {
+                    Console.WriteLine($"Rollback also failed: {rollbackEx.Message}");
+                }
+                throw; // Re-throw so the UI/caller knows it failed
             }
+        }
+
+        // DELETE TRANSACTION - Use existing connection
+        public void DeleteTransaction<T>(string filterColumn, object filterValue, NpgsqlConnection conn)
+        {
+            var type = typeof(T);
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+
+            // Formatting value for SQL
+            string formattedValue = (filterValue is string s) ? $"'{s.Replace("'", "''")}'" : filterValue.ToString();
+
+            string sql = $"DELETE FROM {tableAttr.Name} WHERE {filterColumn} = {formattedValue};";
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.ExecuteNonQuery();
         }
 
 

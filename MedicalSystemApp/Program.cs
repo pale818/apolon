@@ -43,6 +43,7 @@ namespace MedicalSystemApp
             while (keepRunning)
             {
 
+                Console.Clear(); 
                 Console.WriteLine("\n--- CUSTOM ORM MENU ---");
                 Console.WriteLine("1. Create Table");
                 Console.WriteLine("2. Insert");
@@ -52,11 +53,11 @@ namespace MedicalSystemApp
                 Console.WriteLine("6. Filter by name ");
                 Console.WriteLine("7. Patient record");
                 Console.WriteLine("8. Add Transaction");
-                Console.WriteLine("9. Run Migrations (Add Email Column)");
-                Console.WriteLine("10. Rollback Last Migration");
+                Console.WriteLine("9. Delete Transaction");
+                Console.WriteLine("10. Run Migrations (Add Email Column)");
+                Console.WriteLine("11. Rollback Last Migration");
                 Console.WriteLine("0. Exit");
                 Console.Write("Choose an option: ");
-
                 string choice = Console.ReadLine();
 
                 switch (choice)
@@ -237,8 +238,45 @@ namespace MedicalSystemApp
 
                         }
                         break;
-                    
+
                     case "9":
+                        {
+                            Console.WriteLine("\n--- TRANSACTION: DELETE PATIENT & ALL HISTORY ---");
+                            Console.Write("Enter Patient ID to PERMANENTLY delete: ");
+                            if (int.TryParse(Console.ReadLine(), out int pId))
+                            {
+                                Console.Write($"Are you sure you want to delete Patient {pId} and all their medical records? (y/n): ");
+                                if (Console.ReadLine().ToLower() == "y")
+                                {
+                                    try
+                                    {
+                                        db.ExecuteTransaction(conn =>
+                                        {
+                                            // 1. Delete dependent records first (Prescriptions)
+                                            db.DeleteTransaction<Prescription>("patient_id", pId, conn);
+                                            Console.WriteLine("- Deleted related prescriptions.");
+
+                                            // 2. Delete dependent records (Checkups)
+                                            db.DeleteTransaction<Checkup>("patient_id", pId, conn);
+                                            Console.WriteLine("- Deleted related checkups.");
+
+                                            // 3. Delete the main record (Patient)
+                                            db.DeleteTransaction<Patient>("id", pId, conn);
+                                            Console.WriteLine("- Deleted patient record.");
+
+                                            Console.WriteLine("\nTransaction successful: All records wiped.");
+                                        });
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Console.WriteLine($"Transaction deletion failed! Changes rolled back. Error: {ex.Message}");
+                                    }
+                                }
+                            }
+                        }
+                        break;
+
+                    case "10":
                         {
                             var migrator = new MigrationManager(myConnectionString);
                             // Demonstration: Adding a column that wasn't there before
@@ -247,10 +285,18 @@ namespace MedicalSystemApp
                         }
                         break;
                     
-                    case "10":
+                    case "11":
                         {
+                            //var migrator = new MigrationManager(myConnectionString);
+                            //migrator.RollbackLastMigration();
+
+                            Console.WriteLine("\n--- ROLLING BACK LAST MIGRATION ---");
                             var migrator = new MigrationManager(myConnectionString);
-                            migrator.RollbackLastMigration();
+
+                            // This is the SQL required to reverse the specific change made in Case 10
+                            string undoSql = "ALTER TABLE patients DROP COLUMN IF EXISTS phone_number;";
+
+                            migrator.RollbackLastMigration(undoSql);
                         }
                         break;
             
@@ -262,6 +308,13 @@ namespace MedicalSystemApp
                     default:
                         Console.WriteLine("Invalid choice!");
                         break;
+                }
+
+                if (keepRunning)
+                {
+                    Console.WriteLine("\n-------------------------------------------");
+                    Console.WriteLine("Action finished. Press [ENTER] to return to menu...");
+                    Console.ReadLine(); // This pauses the program so you can see the result
                 }
 
             }

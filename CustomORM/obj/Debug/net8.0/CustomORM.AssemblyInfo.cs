@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CustomORM")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+fb9ab462fd4c42b5ae7393c4a53adda89b68da97")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e4fb232c99f33c7f7c8f5566197ecff6a13048ea")]
 [assembly: System.Reflection.AssemblyProductAttribute("CustomORM")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CustomORM")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

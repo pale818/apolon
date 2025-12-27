@@ -15,13 +15,22 @@ namespace CustomORM
 
         // LO5 Desired: Execute existing migrations with tracking
 
+        
+
         public void ApplyMigration(string migrationName, string sql)
         {
             using (var conn = new NpgsqlConnection(_connectionString))
             {
                 conn.Open();
 
-                // Check if already applied
+                // 1. ENSURE MIGRATIONS TABLE EXISTS
+                string initSql = @"CREATE TABLE IF NOT EXISTS migrations (
+                            id SERIAL PRIMARY KEY,
+                            name VARCHAR(255) UNIQUE NOT NULL,
+                            executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);";
+                using (var initCmd = new NpgsqlCommand(initSql, conn)) initCmd.ExecuteNonQuery();
+
+                // 2. CHECK IF APPLIED
                 using (var checkCmd = new NpgsqlCommand("SELECT COUNT(*) FROM migrations WHERE name = @name", conn))
                 {
                     checkCmd.Parameters.AddWithValue("name", migrationName);
@@ -32,69 +41,78 @@ namespace CustomORM
                     }
                 }
 
-                // Apply within transaction
-                using (var trans = conn.BeginTransaction())
+                // 3. APPLY (Using manual BEGIN/COMMIT for Pooler Compatibility)
+                using (var begin = new NpgsqlCommand("BEGIN", conn)) begin.ExecuteNonQuery();
+
+                try
                 {
-                    try
-                    {
-                        // 1. Run the SQL change
-                        using (var migrateCmd = new NpgsqlCommand(sql, conn, trans))
-                        {
-                            migrateCmd.ExecuteNonQuery();
-                        }
+                    // Run the actual migration SQL
+                    using (var migrateCmd = new NpgsqlCommand(sql, conn)) migrateCmd.ExecuteNonQuery();
 
-                        // 2. Log the migration
-                        using (var logCmd = new NpgsqlCommand("INSERT INTO migrations (name) VALUES (@name)", conn, trans))
-                        {
-                            logCmd.Parameters.AddWithValue("name", migrationName);
-                            logCmd.ExecuteNonQuery();
-                        }
-
-                        trans.Commit();
-                        Console.WriteLine($"Successfully applied: {migrationName}");
-                    }
-                    catch (Exception ex)
+                    // Log the migration record
+                    using (var logCmd = new NpgsqlCommand("INSERT INTO migrations (name) VALUES (@name)", conn))
                     {
-                        trans.Rollback();
-                        Console.WriteLine($"FAILED: {ex.Message}");
+                        logCmd.Parameters.AddWithValue("name", migrationName);
+                        logCmd.ExecuteNonQuery();
                     }
+
+                    using (var commit = new NpgsqlCommand("COMMIT", conn)) commit.ExecuteNonQuery();
+                    Console.WriteLine($"Successfully applied: {migrationName}");
+                }
+                catch (Exception ex)
+                {
+                    using (var rollback = new NpgsqlCommand("ROLLBACK", conn)) rollback.ExecuteNonQuery();
+                    Console.WriteLine($"FAILED: {ex.Message}");
+                    throw;
                 }
             }
         }
 
         // LO5 Desired: Rollback functionality
-        public void RollbackLastMigration()
+        
+
+        public void RollbackLastMigration(string undoSql)
         {
             using (var conn = new NpgsqlConnection(_connectionString))
             {
                 conn.Open();
-                string lastMig = "";
 
+                // 1. Get the name of the last migration
+                string lastMig;
                 using (var cmd = new NpgsqlCommand("SELECT name FROM migrations ORDER BY executed_at DESC LIMIT 1", conn))
                 {
                     lastMig = cmd.ExecuteScalar()?.ToString();
                 }
 
-                if (string.IsNullOrEmpty(lastMig)) return;
-
-                using (var trans = conn.BeginTransaction())
+                if (string.IsNullOrEmpty(lastMig))
                 {
-                    try
+                    Console.WriteLine("No migrations found to rollback.");
+                    return;
+                }
+
+                using (var begin = new NpgsqlCommand("BEGIN", conn)) begin.ExecuteNonQuery();
+                try
+                {
+                    // 2. Run the UNDO SQL (e.g., ALTER TABLE patients DROP COLUMN phone_number)
+                    using (var undoCmd = new NpgsqlCommand(undoSql, conn)) undoCmd.ExecuteNonQuery();
+
+                    // 3. Remove the log
+                    using (var del = new NpgsqlCommand("DELETE FROM migrations WHERE name = @name", conn))
                     {
-                        using (var del = new NpgsqlCommand("DELETE FROM migrations WHERE name = @name", conn, trans))
-                        {
-                            del.Parameters.AddWithValue("name", lastMig);
-                            del.ExecuteNonQuery();
-                        }
-                        trans.Commit();
-                        Console.WriteLine($"Rollback success for: {lastMig}");
+                        del.Parameters.AddWithValue("name", lastMig);
+                        del.ExecuteNonQuery();
                     }
-                    catch { trans.Rollback(); }
+
+                    using (var commit = new NpgsqlCommand("COMMIT", conn)) commit.ExecuteNonQuery();
+                    Console.WriteLine($"Rollback success for: {lastMig}");
+                }
+                catch (Exception ex)
+                {
+                    using (var rollback = new NpgsqlCommand("ROLLBACK", conn)) rollback.ExecuteNonQuery();
+                    Console.WriteLine($"Rollback failed: {ex.Message}");
                 }
             }
         }
-
-
 
     }
 }
