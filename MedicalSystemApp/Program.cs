@@ -62,6 +62,7 @@ namespace MedicalSystemApp
                 Console.WriteLine("11. Run Migrations (Add Email Column)");
                 Console.WriteLine("12. Rollback Last Migration");
                 Console.WriteLine("13. Change database");
+                Console.WriteLine("14. Check for updates - migration");
                 Console.WriteLine("0. Exit");
                 Console.Write("Choose an option: ");
                 string choice = Console.ReadLine();
@@ -434,6 +435,30 @@ namespace MedicalSystemApp
 
                             // Re-initialize the db object with the new connection string
                             db = new DatabaseManager(currentConnString);
+                        }
+                        break;
+
+                    case "14":
+                        Console.WriteLine("\n--- CHECKING FOR MODEL CHANGES (Auto-Migration) ---");
+                        try
+                        {
+                            var migrator = new MigrationManager(currentConnString);
+
+                            // This will check each class against its respective table in the DB
+                            Console.WriteLine("Checking Patients...");
+                            migrator.AutoMigrate<Patient>();
+
+                            Console.WriteLine("Checking Checkups...");
+                            migrator.AutoMigrate<Checkup>();
+
+                            Console.WriteLine("Checking Prescriptions...");
+                            migrator.AutoMigrate<Prescription>();
+
+                            Console.WriteLine("\nScan complete. Database is up to date with models.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Migration Error: {ex.Message}");
                         }
                         break;
 

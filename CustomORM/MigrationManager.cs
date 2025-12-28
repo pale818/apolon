@@ -1,6 +1,9 @@
-﻿using System;
+﻿using Npgsql;
+using System;
 using System.Collections.Generic;
-using Npgsql;
+using System.Reflection;
+using System.Linq;
+using CustomORM.Attributes;
 
 namespace CustomORM
 {
@@ -13,11 +16,8 @@ namespace CustomORM
             _connectionString = connectionString;
         }
 
-        // LO5 Desired: Execute existing migrations with tracking
-
-        
-
-        public void ApplyMigration(string migrationName, string sql)
+        // --- UPDATED METHOD SIGNATURE TO ACCEPT 3 ARGUMENTS ---
+        public void ApplyMigration(string migrationName, string sql, bool executeSql = true)
         {
             using (var conn = new NpgsqlConnection(_connectionString))
             {
@@ -41,13 +41,16 @@ namespace CustomORM
                     }
                 }
 
-                // 3. APPLY (Using manual BEGIN/COMMIT for Pooler Compatibility)
+                // 3. APPLY
                 using (var begin = new NpgsqlCommand("BEGIN", conn)) begin.ExecuteNonQuery();
 
                 try
                 {
-                    // Run the actual migration SQL
-                    using (var migrateCmd = new NpgsqlCommand(sql, conn)) migrateCmd.ExecuteNonQuery();
+                    // ONLY run the SQL if executeSql is true
+                    if (executeSql)
+                    {
+                        using (var migrateCmd = new NpgsqlCommand(sql, conn)) migrateCmd.ExecuteNonQuery();
+                    }
 
                     // Log the migration record
                     using (var logCmd = new NpgsqlCommand("INSERT INTO migrations (name) VALUES (@name)", conn))
@@ -57,7 +60,9 @@ namespace CustomORM
                     }
 
                     using (var commit = new NpgsqlCommand("COMMIT", conn)) commit.ExecuteNonQuery();
-                    Console.WriteLine($"Successfully applied: {migrationName}");
+
+                    if (executeSql)
+                        Console.WriteLine($"Successfully applied: {migrationName}");
                 }
                 catch (Exception ex)
                 {
@@ -68,16 +73,12 @@ namespace CustomORM
             }
         }
 
-        // LO5 Desired: Rollback functionality
-        
-
         public void RollbackLastMigration(string undoSql)
         {
             using (var conn = new NpgsqlConnection(_connectionString))
             {
                 conn.Open();
 
-                // 1. Get the name of the last migration
                 string lastMig;
                 using (var cmd = new NpgsqlCommand("SELECT name FROM migrations ORDER BY executed_at DESC LIMIT 1", conn))
                 {
@@ -93,10 +94,8 @@ namespace CustomORM
                 using (var begin = new NpgsqlCommand("BEGIN", conn)) begin.ExecuteNonQuery();
                 try
                 {
-                    // 2. Run the UNDO SQL (e.g., ALTER TABLE patients DROP COLUMN phone_number)
                     using (var undoCmd = new NpgsqlCommand(undoSql, conn)) undoCmd.ExecuteNonQuery();
 
-                    // 3. Remove the log
                     using (var del = new NpgsqlCommand("DELETE FROM migrations WHERE name = @name", conn))
                     {
                         del.Parameters.AddWithValue("name", lastMig);
@@ -114,5 +113,90 @@ namespace CustomORM
             }
         }
 
+        public void AutoMigrate<T>()
+        {
+            var type = typeof(T);
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+            if (tableAttr == null) return;
+
+            string tableName = tableAttr.Name;
+            List<string> dbColumns = new List<string>();
+
+            using (var conn = new NpgsqlConnection(_connectionString))
+            {
+                conn.Open();
+
+                string checkSql = "SELECT column_name FROM information_schema.columns WHERE table_name = @table";
+                using (var cmd = new NpgsqlCommand(checkSql, conn))
+                {
+                    cmd.Parameters.AddWithValue("table", tableName.ToLower());
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read()) dbColumns.Add(reader.GetString(0).ToLower());
+                    }
+                }
+
+                var properties = type.GetProperties()
+                    .Where(p => p.GetCustomAttribute<ColumnAttribute>() != null)
+                    .ToList();
+                var classColumnNames = properties.Select(p => p.GetCustomAttribute<ColumnAttribute>().Name.ToLower()).ToList();
+
+                foreach (var prop in properties)
+                {
+                    string colName = prop.GetCustomAttribute<ColumnAttribute>().Name.ToLower();
+
+                    if (!dbColumns.Contains(colName))
+                    {
+                        string sqlType = GetSqlType(prop.PropertyType);
+                        string alterSql = $"ALTER TABLE {tableName} ADD COLUMN IF NOT EXISTS {colName} {sqlType};";
+
+                        using (var cmd = new NpgsqlCommand(alterSql, conn))
+                        {
+                            cmd.ExecuteNonQuery();
+                        }
+
+                        // This now works because the signature above was updated
+                        ApplyMigration($"AutoAdd_{tableName}_{colName}", alterSql, false);
+
+                        Console.WriteLine($"[Auto-Migration] ADDED column: {colName} to {tableName}");
+                    }
+                }
+
+                foreach (var dbCol in dbColumns)
+                {
+                    if (dbCol == "id" || dbCol == "patient_id") continue;
+
+                    if (!classColumnNames.Contains(dbCol))
+                    {
+                        Console.WriteLine($"\n[Auto-Migration] Found orphaned column in DB: {dbCol}");
+                        Console.Write($"Do you want to DELETE '{dbCol}' from {tableName}? (y/n): ");
+
+                        if (Console.ReadLine()?.ToLower() == "y")
+                        {
+                            string dropSql = $"ALTER TABLE {tableName} DROP COLUMN IF EXISTS {dbCol};";
+
+                            using (var cmd = new NpgsqlCommand(dropSql, conn))
+                            {
+                                cmd.ExecuteNonQuery();
+                            }
+
+                            // This now works because the signature above was updated
+                            ApplyMigration($"AutoDrop_{tableName}_{dbCol}", dropSql, false);
+
+                            Console.WriteLine($"[Auto-Migration] DROPPED column: {dbCol}");
+                        }
+                    }
+                }
+            }
+        }
+
+        private string GetSqlType(Type type)
+        {
+            type = Nullable.GetUnderlyingType(type) ?? type;
+            if (type == typeof(int)) return "INT";
+            if (type == typeof(string)) return "VARCHAR(255)";
+            if (type == typeof(DateTime)) return "TIMESTAMP";
+            return "TEXT";
+        }
     }
 }
