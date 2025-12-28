@@ -21,9 +21,13 @@ namespace MedicalSystemApp
 
             IConfiguration config = builder.Build();
 
-            string myConnectionString = config.GetConnectionString("DefaultConnection");
+            string dockerStr = config.GetConnectionString("DockerConnection");
+            string supabaseStr = config.GetConnectionString("SupabaseConnection");
+
             // 2. Initialize the Manager
-            DatabaseManager db = new DatabaseManager(myConnectionString);
+            string currentConnString = supabaseStr;
+            DatabaseManager db = new DatabaseManager(currentConnString);
+
 
             Console.WriteLine("Checking connection and creating table...");
 
@@ -57,6 +61,7 @@ namespace MedicalSystemApp
                 Console.WriteLine("10. Delete Transaction");
                 Console.WriteLine("11. Run Migrations (Add Email Column)");
                 Console.WriteLine("12. Rollback Last Migration");
+                Console.WriteLine("13. Change database");
                 Console.WriteLine("0. Exit");
                 Console.Write("Choose an option: ");
                 string choice = Console.ReadLine();
@@ -389,7 +394,7 @@ namespace MedicalSystemApp
 
                     case "11":
                         {
-                            var migrator = new MigrationManager(myConnectionString);
+                            var migrator = new MigrationManager(currentConnString);
                             // Demonstration: Adding a column that wasn't there before
                             string sql = "ALTER TABLE patients ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);";
                             migrator.ApplyMigration("20251226_AddPhoneToPatient", sql);
@@ -402,7 +407,7 @@ namespace MedicalSystemApp
                             //migrator.RollbackLastMigration();
 
                             Console.WriteLine("\n--- ROLLING BACK LAST MIGRATION ---");
-                            var migrator = new MigrationManager(myConnectionString);
+                            var migrator = new MigrationManager(currentConnString);
 
                             // This is the SQL required to reverse the specific change made in Case 10
                             string undoSql = "ALTER TABLE patients DROP COLUMN IF EXISTS phone_number;";
@@ -410,7 +415,28 @@ namespace MedicalSystemApp
                             migrator.RollbackLastMigration(undoSql);
                         }
                         break;
-            
+                    case "13": // Add a new option to your menu
+                        {
+                            Console.WriteLine("\n--- SWITCH DATABASE ---");
+                            Console.WriteLine("1. Docker (Local) | 2. Supabase (Cloud)");
+                            string c = Console.ReadLine();
+
+                            if (c == "1")
+                            {
+                                currentConnString = dockerStr;
+                                Console.WriteLine("Switched to DOCKER.");
+                            }
+                            else
+                            {
+                                currentConnString = supabaseStr;
+                                Console.WriteLine("Switched to SUPABASE.");
+                            }
+
+                            // Re-initialize the db object with the new connection string
+                            db = new DatabaseManager(currentConnString);
+                        }
+                        break;
+
                     case "0":
                         keepRunning = false;
                         Console.WriteLine("Exiting...");
