@@ -1,2 +1,25 @@
-.vs
+## Visual Studio Temp Files
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.sln.docstates
+
+## Build Outputs
+bin/
+obj/
+
+## Dynamic Link Libraries & Executables
+*.dll
+*.exe
+*.pdb
+*.cache
+
+## Docker
+.dockerignore
+
+## User-specific settings
+.idea/
+*.suo
+*.user
 
