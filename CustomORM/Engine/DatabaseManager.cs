@@ -59,20 +59,30 @@ namespace CustomORM.Engine
         //INSERT
 
         // We add optional parameters for conn and trans
-        public int Insert<T>(T entity, NpgsqlConnection existingConn = null, NpgsqlTransaction existingTrans = null)
+        public int Insert<T>(T entity)
         {
-            // 1. Generate SQL first
             string sql = generator.GenerateInsertSql(entity);
 
-            // 3. STANDARD PATH:
-            // Only used for non-transactional single inserts
-            using (var conn = new NpgsqlConnection(_connectionString))
+            try
             {
-                conn.Open();
-                using (var cmd = new NpgsqlCommand(sql, conn))
+                using (var conn = new NpgsqlConnection(_connectionString))
                 {
-                    return Convert.ToInt32(cmd.ExecuteScalar());
+                    conn.Open();
+                    using (var cmd = new NpgsqlCommand(sql, conn))
+                    {
+                        return Convert.ToInt32(cmd.ExecuteScalar());
+                    }
                 }
+            }
+            catch (PostgresException ex) when (ex.SqlState == "23505")
+            {
+                Console.WriteLine("\n[ERROR] This email already exists! Please try a different one.");
+                return -1; // Return -1 to indicate failure due to duplicate
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"\n[ERROR] An unexpected error occurred: {ex.Message}");
+                return -1;
             }
         }
 
@@ -90,16 +100,23 @@ namespace CustomORM.Engine
 
         public void Update<T>(T entity)
         {
-            var sql = new SqlGenerator().GenerateUpdateSql(entity);
-            using (var conn = new NpgsqlConnection(_connectionString))
+            var sql = generator.GenerateUpdateSql(entity);
+            try
             {
-                conn.Open();
-                using (var cmd = new NpgsqlCommand(sql, conn))
+                using (var conn = new NpgsqlConnection(_connectionString))
                 {
-                    cmd.ExecuteNonQuery();
+                    conn.Open();
+                    using (var cmd = new NpgsqlCommand(sql, conn))
+                    {
+                        cmd.ExecuteNonQuery();
+                    }
                 }
+                Console.WriteLine("SUCCESS: Record updated!");
             }
-            Console.WriteLine("SUCCESS: Patient updated!");
+            catch (PostgresException ex) when (ex.SqlState == "23505")
+            {
+                Console.WriteLine("\n[ERROR] Update failed: This email is already taken by another user.");
+            }
         }
 
 
@@ -172,9 +189,16 @@ namespace CustomORM.Engine
                         {
                             var colAttr = prop.GetCustomAttribute<ColumnAttribute>();
                             var val = reader[colAttr.Name];
-                            if (val != DBNull.Value)
+                            // --- ADD THIS BLOCK TO FIX THE CRASH ---
+                            if (prop.PropertyType.IsEnum)
                             {
-                                prop.SetValue(item, val);
+                                // Converts the string from DB to your CheckupType Enum
+                                prop.SetValue(item, Enum.Parse(prop.PropertyType, val.ToString()));
+                            }
+                            else
+                            {
+                                // Standard conversion for int, string, DateTime
+                                prop.SetValue(item, Convert.ChangeType(val, prop.PropertyType));
                             }
                         }
                         result.Add(item);

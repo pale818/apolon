@@ -316,7 +316,7 @@ namespace MedicalSystemApp
                                 Console.WriteLine($"Prescriptions found: {p.Prescriptions.Count}");
 
                                 Console.WriteLine("\n--- HISTORY ---");
-                                p.Checkups.ForEach(c => Console.WriteLine($"Checkup: {c.Date:yyyy-MM-dd} - {c.Type}"));
+                                p.Checkups.ForEach(c => Console.WriteLine($"Checkup: {c.Notes} - {c.Date:yyyy-MM-dd} - {c.Type}"));
                                 p.Prescriptions.ForEach(pr => Console.WriteLine($"Meds: {pr.Medication} - Dasage: {pr.Dosage} - Start date: {pr.StartDate} "));
                             }
                             else { Console.WriteLine("Patient not found."); }
