@@ -17,13 +17,13 @@ namespace MedicalSystemApp
         [Column("patient_id")]
         public int PatientId { get; set; }
 
+        [Column("medication_id", IsNullable = false)]
+        public int MedicationId { get; set; }
+
         [Column("start_date")]
         public DateTime StartDate { get; set; }
 
-        [Column("medication_name")]
-        public string Medication { get; set; }
-
         [Column("dosage")]
-        public string Dosage { get; set; }
+        public float Dosage { get; set; }
     }
 }

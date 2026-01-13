@@ -285,6 +285,34 @@ namespace CustomORM.Engine
             }
             return mainEntity;
         }
+        public List<T> GetWhereIn<T>(string columnName, IEnumerable<int> values) where T : new()
+        {
+            var ids = values?.Distinct().ToList() ?? new List<int>();
+            if (ids.Count == 0) return new List<T>();
+
+            string sql = generator.GenerateSelectWhereInSql<T>(columnName, ids);
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            conn.Open();
+            using var cmd = new NpgsqlCommand(sql, conn);
+
+            // add parameters @p0, @p1, ...
+            for (int i = 0; i < ids.Count; i++)
+                cmd.Parameters.AddWithValue($"@p{i}", ids[i]);
+
+            using var reader = cmd.ExecuteReader();
+            var result = new List<T>();
+
+            while (reader.Read())
+            {
+                // IMPORTANT: this query is NOT aliased, so map normally
+                result.Add(generator.MapReaderToObject<T>(reader));
+            }
+
+            return result;
+        }
+
+
 
         // Helper to map aliased columns back to objects
         private T MapAliased<T>(NpgsqlDataReader reader, string prefix) where T : new()

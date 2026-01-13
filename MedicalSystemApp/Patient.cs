@@ -14,18 +14,8 @@ namespace MedicalSystemApp
         [Column("id", DbType = "SERIAL")] // Added DbType
         public int Id { get; set; }
 
-        [Column("first_name", DbType = "VARCHAR(100)")] // Added DbType
-        public string FirstName { get; set; }
-
-        [Column("age", DbType = "INT")] // Added DbType
-        public int Age { get; set; }
-
-        [Column("email", IsUnique = true, IsNullable = false)]
-        public string Email { get; set; } // No two patients can have the same email
-
-        // for testing auto migration and rollback
-        //[Column("phone_number")] public string PhoneNumber { get; set; }
-
+        [Column("patient_data_id", IsUnique = true, IsNullable = false)]
+        public int PatientDataId { get; set; }
 
         // --- NAVIGATIONAL PROPERTIES ---
         // These are NOT [Column] because they don't exist in the 'patients' table

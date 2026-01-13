@@ -3,6 +3,7 @@
 DROP TABLE IF EXISTS checkups;
 DROP TABLE IF EXISTS prescriptions;
 DROP TABLE IF EXISTS patients;
+DROP TABLE IF EXISTS medication;
 
 
 */

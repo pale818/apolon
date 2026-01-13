@@ -69,7 +69,7 @@ namespace CustomORM.Engine
         }
 
         //INSERT
-        public string GenerateInsertSql(object obj)
+        public string GenerateInsertSqlOLD(object obj)
         {
             var type = obj.GetType();
             var tableAttr = type.GetCustomAttribute<TableAttribute>();
@@ -106,6 +106,55 @@ namespace CustomORM.Engine
 
             return $"INSERT INTO {tableAttr.Name} ({columnNames}) VALUES ({valuesSql}) RETURNING id;";
         }
+
+        public string GenerateInsertSql(object obj)
+        {
+            var type = obj.GetType();
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+
+            // Find the PK column name dynamically (instead of hard-coded "id")
+            var pkProp = type.GetProperties()
+                .FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null &&
+                                     p.GetCustomAttribute<ColumnAttribute>() != null);
+
+            string pkColumnName = pkProp?.GetCustomAttribute<ColumnAttribute>()?.Name ?? "id";
+
+            // Get all columns, but SKIP the Primary Key (Serial) since DB handles it
+            var properties = type.GetProperties()
+                .Where(p => p.GetCustomAttribute<ColumnAttribute>() != null &&
+                            p.GetCustomAttribute<KeyAttribute>() == null)
+                .ToList();
+
+            var columnNames = string.Join(", ", properties.Select(p => p.GetCustomAttribute<ColumnAttribute>().Name));
+
+            // SMART VALUE MAPPING
+            var values = properties.Select(p =>
+            {
+                var val = p.GetValue(obj);
+                if (val == null) return "NULL";
+
+                if (val is string)
+                    return $"'{val.ToString().Replace("'", "''")}'";
+                if (val is DateTime dt)
+                    return $"'{dt:yyyy-MM-dd HH:mm:ss}'";
+
+                if (val is bool b) return b ? "TRUE" : "FALSE";
+
+                if (val is Enum e)
+                    return $"'{e}'";
+
+                // IMPORTANT: float/decimal should use dot as decimal separator (Croatia locale issue)
+                if (val is float || val is double || val is decimal)
+                    return Convert.ToString(val, System.Globalization.CultureInfo.InvariantCulture);
+
+                return val.ToString();
+            });
+
+            var valuesSql = string.Join(", ", values);
+
+            return $"INSERT INTO {tableAttr.Name} ({columnNames}) VALUES ({valuesSql}) RETURNING {pkColumnName};";
+        }
+
 
 
         //UPDATE
@@ -304,6 +353,24 @@ namespace CustomORM.Engine
 
             return sql;
         }
+
+        public string GenerateSelectWhereInSql<T>(string columnName, List<int> ids)
+        {
+            var type = typeof(T);
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+            if (tableAttr == null)
+                throw new Exception($"Class {type.Name} is missing the [Table] attribute.");
+
+            if (ids == null || ids.Count == 0)
+                throw new Exception("GenerateSelectWhereInSql: ids list is empty.");
+
+            // Build parameter list: @p0,@p1,@p2...
+            string paramList = string.Join(", ", ids.Select((_, i) => $"@p{i}"));
+
+            return $"SELECT * FROM {tableAttr.Name} WHERE {columnName} IN ({paramList});";
+        }
+
+
 
     }
 }
