@@ -67,45 +67,6 @@ namespace CustomORM
             }
         }
 
-        public void RollbackLastMigration(string undoSql)
-        {
-            using (var conn = new NpgsqlConnection(_connectionString))
-            {
-                conn.Open();
-
-                string lastMig;
-                using (var cmd = new NpgsqlCommand("SELECT name FROM migrations ORDER BY executed_at DESC LIMIT 1", conn))
-                {
-                    lastMig = cmd.ExecuteScalar()?.ToString();
-                }
-
-                if (string.IsNullOrEmpty(lastMig))
-                {
-                    Console.WriteLine("No migrations found to rollback.");
-                    return;
-                }
-
-                using (var begin = new NpgsqlCommand("BEGIN", conn)) begin.ExecuteNonQuery();
-                try
-                {
-                    using (var undoCmd = new NpgsqlCommand(undoSql, conn)) undoCmd.ExecuteNonQuery();
-
-                    using (var del = new NpgsqlCommand("DELETE FROM migrations WHERE name = @name", conn))
-                    {
-                        del.Parameters.AddWithValue("name", lastMig);
-                        del.ExecuteNonQuery();
-                    }
-
-                    using (var commit = new NpgsqlCommand("COMMIT", conn)) commit.ExecuteNonQuery();
-                    Console.WriteLine($"Rollback success for: {lastMig}");
-                }
-                catch (Exception ex)
-                {
-                    using (var rollback = new NpgsqlCommand("ROLLBACK", conn)) rollback.ExecuteNonQuery();
-                    Console.WriteLine($"Rollback failed: {ex.Message}");
-                }
-            }
-        }
 
         public void AutoMigrate<T>()
         {

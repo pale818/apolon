@@ -46,11 +46,8 @@ namespace MedicalSystemApp
                 Console.WriteLine("7. Patient record - Lazy loading");
                 Console.WriteLine("8. Patient record - Eager loading");
                 Console.WriteLine("9. Add Transaction");
-                Console.WriteLine("10. Delete Transaction");
-                Console.WriteLine("11. Run Migrations (Add Phone Column)");
-                Console.WriteLine("12. Rollback Last Migration");
-                Console.WriteLine("13. Change database");
-                Console.WriteLine("14. Check for updates - migration");
+                Console.WriteLine("10. Change database");
+                Console.WriteLine("11. Check for updates - migration");
                 Console.WriteLine("0. Exit");
                 Console.Write("Choose an option: ");
                 string choice = Console.ReadLine();
@@ -638,78 +635,7 @@ namespace MedicalSystemApp
                         }
                         break;
 
-
-                    case "10":
-                        {
-                            Console.WriteLine("\n--- TRANSACTION: DELETE PATIENT & ALL HISTORY (incl. PatientData 1:1) ---");
-                            Console.Write("Enter Patient ID to PERMANENTLY delete: ");
-                            if (int.TryParse(Console.ReadLine(), out int pId))
-                            {
-                                Console.Write($"Are you sure you want to delete Patient {pId} and all their medical records? (y/n): ");
-                                if (Console.ReadLine().ToLower() == "y")
-                                {
-                                    try
-                                    {
-                                        // First fetch Patient to get PatientDataId (outside tx is OK)
-                                        var patient = db.GetWithFilter<Patient>("id", pId).FirstOrDefault();
-                                        if (patient == null)
-                                        {
-                                            Console.WriteLine("Patient not found.");
-                                            break;
-                                        }
-
-                                        int patientDataId = patient.PatientDataId;
-
-                                        db.ExecuteTransaction(conn =>
-                                        {
-                                            // 1) Delete dependent records first
-                                            db.DeleteTransaction<Prescription>("patient_id", pId, conn);
-                                            Console.WriteLine("- Deleted related prescriptions.");
-
-                                            db.DeleteTransaction<Checkup>("patient_id", pId, conn);
-                                            Console.WriteLine("- Deleted related checkups.");
-
-                                            // 2) Delete Patient row
-                                            db.DeleteTransaction<Patient>("id", pId, conn);
-                                            Console.WriteLine("- Deleted patient record.");
-
-                                            // 3) Delete PatientData row (1:1)
-                                            db.DeleteTransaction<PatientData>("id", patientDataId, conn);
-                                            Console.WriteLine("- Deleted patient data record.");
-
-                                            Console.WriteLine("\nTransaction successful: All records wiped.");
-                                        });
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        Console.WriteLine($"Transaction deletion failed! Changes rolled back. Error: {ex.Message}");
-                                    }
-                                }
-                            }
-                        }
-                        break;
-
-
-                    case "11":
-                        {
-                            var migrator = new MigrationManager(currentConnString);
-                            string sql = "ALTER TABLE patient_data ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);";
-                            migrator.ApplyMigration("20251226_AddPhoneToPatientData", sql);
-                        }
-                        break;
-                    
-                    case "12":
-                        {
-                           
-                            Console.WriteLine("\n--- ROLLING BACK LAST MIGRATION ---");
-                            var migrator = new MigrationManager(currentConnString);
-
-                            string undoSql = "ALTER TABLE patient_data DROP COLUMN IF EXISTS phone_number;";
-
-                            migrator.RollbackLastMigration(undoSql);
-                        }
-                        break;
-                    case "13": // Add a new option to your menu
+                    case "10": // Add a new option to your menu
                         {
                             Console.WriteLine("\n--- SWITCH DATABASE ---");
                             Console.WriteLine("1. Docker (Local) | 2. Supabase (Cloud)");
@@ -731,7 +657,7 @@ namespace MedicalSystemApp
                         }
                         break;
 
-                    case "14":
+                    case "11":
                         Console.WriteLine("\n--- AUTO MIGRATION ---");
                         try
                         {
