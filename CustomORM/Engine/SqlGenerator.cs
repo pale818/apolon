@@ -42,19 +42,18 @@ namespace CustomORM.Engine
                 }
                 else
                 {
-                    // For normal columns, we use our smart GetSqlType helper
                     string sqlValueType = GetSqlType(prop.PropertyType);
                     columnDef = $"{colAttr.Name} {sqlValueType}";
 
-                    // 1. UNIQUE Constraint
+                    //UNIQUE Constraint
                     if (colAttr.IsUnique)
                         columnDef += " UNIQUE";
 
-                    // 2. NOT NULL Constraint
+                    //NOT NULL Constraint
                     if (!colAttr.IsNullable)
                         columnDef += " NOT NULL";
 
-                    // 3. DEFAULT Constraint
+                    //DEFAULT Constraint
                     if (!string.IsNullOrEmpty(colAttr.DefaultValue))
                         columnDef += $" DEFAULT {colAttr.DefaultValue}";
                 }
@@ -69,57 +68,20 @@ namespace CustomORM.Engine
         }
 
         //INSERT
-        public string GenerateInsertSqlOLD(object obj)
-        {
-            var type = obj.GetType();
-            var tableAttr = type.GetCustomAttribute<TableAttribute>();
-
-            // Get all columns, but SKIP the Primary Key (Serial) since DB handles it
-            var properties = type.GetProperties()
-                .Where(p => p.GetCustomAttribute<ColumnAttribute>() != null &&
-                            p.GetCustomAttribute<KeyAttribute>() == null)
-                .ToList();
-
-            var columnNames = string.Join(", ", properties.Select(p => p.GetCustomAttribute<ColumnAttribute>().Name));
-
-            // SMART VALUE MAPPING
-            var values = properties.Select(p => {
-                var val = p.GetValue(obj);
-                if (val == null) return "NULL";
-
-                if (val is string)
-                    return $"'{val.ToString().Replace("'", "''")}'";
-                if (val is DateTime dt)
-                    return $"'{dt.ToString("yyyy-MM-dd HH:mm:ss")}'"; 
-
-                if (val is bool b) return b ? "TRUE" : "FALSE";
-
-                if (val is Enum e)
-                {
-                    return $"'{e.ToString()}'"; // Converts the Enum (e.g., CheckupType.MRI) to the string "'MRI'"
-                }
-
-                return val.ToString();
-            });
-
-            var valuesSql = string.Join(", ", values);
-
-            return $"INSERT INTO {tableAttr.Name} ({columnNames}) VALUES ({valuesSql}) RETURNING id;";
-        }
+        
 
         public string GenerateInsertSql(object obj)
         {
             var type = obj.GetType();
             var tableAttr = type.GetCustomAttribute<TableAttribute>();
 
-            // Find the PK column name dynamically (instead of hard-coded "id")
             var pkProp = type.GetProperties()
                 .FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null &&
                                      p.GetCustomAttribute<ColumnAttribute>() != null);
 
             string pkColumnName = pkProp?.GetCustomAttribute<ColumnAttribute>()?.Name ?? "id";
 
-            // Get all columns, but SKIP the Primary Key (Serial) since DB handles it
+            // get all columns, skip  primary ky 
             var properties = type.GetProperties()
                 .Where(p => p.GetCustomAttribute<ColumnAttribute>() != null &&
                             p.GetCustomAttribute<KeyAttribute>() == null)
@@ -143,7 +105,6 @@ namespace CustomORM.Engine
                 if (val is Enum e)
                     return $"'{e}'";
 
-                // IMPORTANT: float/decimal should use dot as decimal separator (Croatia locale issue)
                 if (val is float || val is double || val is decimal)
                     return Convert.ToString(val, System.Globalization.CultureInfo.InvariantCulture);
 
@@ -183,19 +144,17 @@ namespace CustomORM.Engine
                 }
                 else if (val is DateTime dt)
                 {
-                    // Forces the date into a format Postgres always understands: 2025-12-26 15:30:00
                     formattedVal = $"'{dt.ToString("yyyy-MM-dd HH:mm:ss")}'";
                 }
                 else if (val is bool b) formattedVal = b ? "TRUE" : "FALSE";
 
                 else if (val is Enum e)
                 {
-                    return $"'{e.ToString()}'"; // Converts the Enum (e.g., CheckupType.MRI) to the string "'MRI'"
+                    return $"'{e.ToString()}'"; 
                 }
                 else formattedVal = val.ToString();
 
 
-                // If it's the Key, we use it for the WHERE clause
                 if (prop.GetCustomAttribute<KeyAttribute>() != null)
                 {
                     pkName = colAttr.Name;
@@ -222,7 +181,6 @@ namespace CustomORM.Engine
 
             foreach (var prop in type.GetProperties())
             {
-                // Find the property with the [Key] attribute
                 if (prop.GetCustomAttribute<KeyAttribute>() != null)
                 {
                     var colAttr = prop.GetCustomAttribute<ColumnAttribute>();
@@ -242,7 +200,6 @@ namespace CustomORM.Engine
 
         //LIST ALL 
 
-        // 1. Simple SQL string builder
         public string GenerateSelectAllSql(Type type)
         {
             var tableAttr = type.GetCustomAttribute<TableAttribute>();
@@ -259,12 +216,10 @@ namespace CustomORM.Engine
                 var colAttr = prop.GetCustomAttribute<ColumnAttribute>();
                 if (colAttr == null) continue;
 
-                // Find the value in the database row by column name
                 var dbValue = reader[colAttr.Name];
 
                 if (dbValue != DBNull.Value)
                 {
-                    // Convert database types (like Int64) to C# types (like Int32)
                     prop.SetValue(obj, Convert.ChangeType(dbValue, prop.PropertyType));
                 }
             }
@@ -272,7 +227,7 @@ namespace CustomORM.Engine
         }
 
 
-        //FOR DATE TIME IN CHECKUPS
+        //TYPE CONVERSION
 
         private static string GetSqlType(Type type)
         {
@@ -294,7 +249,6 @@ namespace CustomORM.Engine
 
             string sql = $"SELECT * FROM {tableAttr.Name}";
 
-            // Handling Filtering (WHERE)
             if (!string.IsNullOrEmpty(filterColumn) && filterValue != null)
             {
                 if (filterValue is string strVal)
@@ -311,7 +265,7 @@ namespace CustomORM.Engine
                 }
             }
 
-            // Handling Ordering (ORDER BY)
+            
             if (!string.IsNullOrEmpty(orderByColumn))
             {
                 string direction = ascending ? "ASC" : "DESC";
@@ -332,8 +286,7 @@ namespace CustomORM.Engine
             var table1 = type1.GetCustomAttribute<TableAttribute>().Name;
             var table2 = type2.GetCustomAttribute<TableAttribute>().Name;
 
-            // Helper to get columns with aliases to avoid "id" conflicts
-            // e.g., patients.id AS p_id, checkups.id AS c_id
+            
             string GetAliasedColumns(Type t, string prefix)
             {
                 var props = t.GetProperties()
@@ -369,6 +322,18 @@ namespace CustomORM.Engine
 
             return $"SELECT * FROM {tableAttr.Name} WHERE {columnName} IN ({paramList});";
         }
+
+        //check medication to add perscription
+        public string GenerateExistsByIdSql<T>(string columnName)
+        {
+            var type = typeof(T);
+            var tableAttr = type.GetCustomAttribute<TableAttribute>();
+            if (tableAttr == null)
+                throw new Exception($"Class {type.Name} is missing the [Table] attribute.");
+
+            return $"SELECT COUNT(1) FROM {tableAttr.Name} WHERE {columnName} = @id;";
+        }
+
 
 
 

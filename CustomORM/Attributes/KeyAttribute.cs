@@ -5,7 +5,6 @@ using System.Text;
 using System.Threading.Tasks;
 
 
- //for updating/deleting specific rows in table
 namespace CustomORM.Attributes
 {
     [AttributeUsage(AttributeTargets.Property)]

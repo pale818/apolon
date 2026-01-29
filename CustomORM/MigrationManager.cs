@@ -16,21 +16,18 @@ namespace CustomORM
             _connectionString = connectionString;
         }
 
-        // --- UPDATED METHOD SIGNATURE TO ACCEPT 3 ARGUMENTS ---
         public void ApplyMigration(string migrationName, string sql, bool executeSql = true)
         {
             using (var conn = new NpgsqlConnection(_connectionString))
             {
                 conn.Open();
 
-                // 1. ENSURE MIGRATIONS TABLE EXISTS
                 string initSql = @"CREATE TABLE IF NOT EXISTS migrations (
                             id SERIAL PRIMARY KEY,
                             name VARCHAR(255) UNIQUE NOT NULL,
                             executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);";
                 using (var initCmd = new NpgsqlCommand(initSql, conn)) initCmd.ExecuteNonQuery();
 
-                // 2. CHECK IF APPLIED
                 using (var checkCmd = new NpgsqlCommand("SELECT COUNT(*) FROM migrations WHERE name = @name", conn))
                 {
                     checkCmd.Parameters.AddWithValue("name", migrationName);
@@ -41,18 +38,15 @@ namespace CustomORM
                     }
                 }
 
-                // 3. APPLY
                 using (var begin = new NpgsqlCommand("BEGIN", conn)) begin.ExecuteNonQuery();
 
                 try
                 {
-                    // ONLY run the SQL if executeSql is true
                     if (executeSql)
                     {
                         using (var migrateCmd = new NpgsqlCommand(sql, conn)) migrateCmd.ExecuteNonQuery();
                     }
 
-                    // Log the migration record
                     using (var logCmd = new NpgsqlCommand("INSERT INTO migrations (name) VALUES (@name)", conn))
                     {
                         logCmd.Parameters.AddWithValue("name", migrationName);
@@ -155,7 +149,6 @@ namespace CustomORM
                             cmd.ExecuteNonQuery();
                         }
 
-                        // This now works because the signature above was updated
                         ApplyMigration($"AutoAdd_{tableName}_{colName}", alterSql, false);
 
                         Console.WriteLine($"[Auto-Migration] ADDED column: {colName} to {tableName}");
@@ -180,7 +173,6 @@ namespace CustomORM
                                 cmd.ExecuteNonQuery();
                             }
 
-                            // This now works because the signature above was updated
                             ApplyMigration($"AutoDrop_{tableName}_{dbCol}", dropSql, false);
 
                             Console.WriteLine($"[Auto-Migration] DROPPED column: {dbCol}");

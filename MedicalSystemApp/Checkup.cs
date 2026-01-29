@@ -15,7 +15,6 @@ namespace MedicalSystemApp
         [Column("id")]
         public int Id { get; set; }
 
-        // This links the Checkup to a Patient
         [Column("patient_id")]
         public int PatientId { get; set; }
 

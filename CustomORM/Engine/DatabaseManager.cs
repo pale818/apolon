@@ -13,7 +13,6 @@ using System.Reflection;
 
 namespace CustomORM.Engine
 {
-    // 1. MUST NOT be abstract if you want to use 'new DatabaseManager()'
     public class DatabaseManager
     {
         private readonly string _connectionString;
@@ -27,10 +26,8 @@ namespace CustomORM.Engine
         //CREATE
         public void CreateTableFromClass<T>()
         {
-            // 2. Create an instance because your SqlGenerator is NOT static
             SqlGenerator generator = new SqlGenerator();
 
-            // 3. Call it using the Generic <T> to match your class
             string sql = generator.GenerateCreateTableSql<T>();
 
             Console.WriteLine("--- GENERATED SQL ---");
@@ -61,7 +58,6 @@ namespace CustomORM.Engine
 
         //INSERT
 
-        // We add optional parameters for conn and trans
         public int Insert<T>(T entity)
         {
             string sql = generator.GenerateInsertSql(entity);
@@ -157,7 +153,6 @@ namespace CustomORM.Engine
                 {
                     while (reader.Read())
                     {
-                        // Turn the current row into a C# object
                         T entity = generator.MapReaderToObject<T>(reader);
                         list.Add(entity);
                     }
@@ -167,8 +162,7 @@ namespace CustomORM.Engine
         }
 
 
-        //FILTER SEARCHING
-
+        //FILTER SEARCHING AND ORDERING
         public List<T> GetWithFilter<T>(string filterCol = null, object filterVal = null, string orderCol = null) where T : new()
         {
             // Make sure 'generator' matches your variable name exactly!
@@ -192,15 +186,12 @@ namespace CustomORM.Engine
                         {
                             var colAttr = prop.GetCustomAttribute<ColumnAttribute>();
                             var val = reader[colAttr.Name];
-                            // --- ADD THIS BLOCK TO FIX THE CRASH ---
                             if (prop.PropertyType.IsEnum)
                             {
-                                // Converts the string from DB to your CheckupType Enum
                                 prop.SetValue(item, Enum.Parse(prop.PropertyType, val.ToString()));
                             }
                             else
                             {
-                                // Standard conversion for int, string, DateTime
                                 prop.SetValue(item, Convert.ChangeType(val, prop.PropertyType));
                             }
                         }
@@ -210,22 +201,19 @@ namespace CustomORM.Engine
             }
             return result;
         }
-        
 
 
-        //NAVIGATIONAL PROPERTIES FOR PATIENT
 
-        // Instead of 'Patient', we use 'T' and 'TDetail'
+        //NAVIGATIONAL PROPERTIES FOR PATIENT ( (1-many, many-1, 1-1)
+
         public T GetEntityWithDetails<T, TDetail>(int id, string foreignKeyColumn)
             where T : new()
             where TDetail : new()
         {
-            // 1. Get the main entity (e.g., Patient)
             var entities = GetWithFilter<T>("id", id);
             if (entities.Count == 0) return default;
             var entity = entities[0];
 
-            // 2. Use Reflection to find the List<TDetail> property and fill it
             var detailProperty = typeof(T).GetProperties()
                 .FirstOrDefault(p => p.PropertyType == typeof(List<TDetail>));
 
@@ -238,6 +226,8 @@ namespace CustomORM.Engine
             return entity;
         }
 
+
+        //EAGER JOIN( gets everything)
         public T GetEagerJoined<T, T1, T2>(int id, string fk1, string fk2)
             where T : new() where T1 : new() where T2 : new()
         {
@@ -257,7 +247,6 @@ namespace CustomORM.Engine
             {
                 if (mainEntity == null) mainEntity = MapAliased<T>(reader, "p");
 
-                // Map related entities from the current row
                 var item1 = MapAliased<T1>(reader, "c");
                 var item2 = MapAliased<T2>(reader, "pr");
 
@@ -265,7 +254,6 @@ namespace CustomORM.Engine
                 if (item1 != null && listProp1 != null)
                 {
                     var list = (List<T1>)listProp1.GetValue(mainEntity);
-                    // Get ID property of the child to check for duplicates
                     var idProp = typeof(T1).GetProperties().First(p => p.GetCustomAttribute<KeyAttribute>() != null);
                     var itemId = idProp.GetValue(item1);
 
@@ -296,7 +284,6 @@ namespace CustomORM.Engine
             conn.Open();
             using var cmd = new NpgsqlCommand(sql, conn);
 
-            // add parameters @p0, @p1, ...
             for (int i = 0; i < ids.Count; i++)
                 cmd.Parameters.AddWithValue($"@p{i}", ids[i]);
 
@@ -305,31 +292,44 @@ namespace CustomORM.Engine
 
             while (reader.Read())
             {
-                // IMPORTANT: this query is NOT aliased, so map normally
                 result.Add(generator.MapReaderToObject<T>(reader));
             }
 
             return result;
         }
 
+        //med check 
+        public bool ExistsById<T>(string columnName, int id) where T : new()
+        {
+            string sql = generator.GenerateExistsByIdSql<T>(columnName);
+
+            using var conn = new NpgsqlConnection(_connectionString);
+            conn.Open();
+
+            using var cmd = new NpgsqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@id", id);
+
+            object? scalar = cmd.ExecuteScalar();
+            if (scalar == null || scalar == DBNull.Value) return false;
+
+            return Convert.ToInt32(scalar) > 0;
+        }
 
 
-        // Helper to map aliased columns back to objects
+
+        // map aliased columns back to objects
         private T MapAliased<T>(NpgsqlDataReader reader, string prefix) where T : new()
         {
             var obj = new T();
-            // Get all properties that have the ColumnAttribute
             var props = typeof(T).GetProperties()
                 .Where(p => p.GetCustomAttribute<ColumnAttribute>() != null)
                 .ToList();
 
-            // Find the primary key for this sub-object to see if data exists in this row
             var pk = props.FirstOrDefault(p => p.GetCustomAttribute<KeyAttribute>() != null);
             if (pk == null) return default;
 
             string pkAlias = $"{prefix}_{pk.GetCustomAttribute<ColumnAttribute>().Name}";
 
-            // If the ID is null in the JOIN result, it means there is no related record for this row
             if (reader[pkAlias] == DBNull.Value) return default;
 
             foreach (var prop in props)
@@ -339,15 +339,12 @@ namespace CustomORM.Engine
 
                 if (dbValue != DBNull.Value)
                 {
-                    // NEW: Explicitly handle Enum types for the Medical Scenario types
                     if (prop.PropertyType.IsEnum)
                     {
-                        // Converts the string from Postgres (e.g., "BLOOD") back to the CheckupType Enum
                         prop.SetValue(obj, Enum.Parse(prop.PropertyType, dbValue.ToString()));
                     }
                     else
                     {
-                        // Standard conversion for INT, VARCHAR, DATETIME, etc.
                         prop.SetValue(obj, Convert.ChangeType(dbValue, prop.PropertyType));
                     }
                 }
@@ -379,7 +376,6 @@ namespace CustomORM.Engine
                 Console.WriteLine($"Logic failed: {ex.Message}. Rolling back...");
                 try
                 {
-                    // Only rollback if the connection is still open
                     if (conn.State == System.Data.ConnectionState.Open)
                     {
                         using var rollback = new NpgsqlCommand("ROLLBACK", conn);
@@ -390,17 +386,16 @@ namespace CustomORM.Engine
                 {
                     Console.WriteLine($"Rollback also failed: {rollbackEx.Message}");
                 }
-                throw; // Re-throw so the UI/caller knows it failed
+                throw; 
             }
         }
 
-        // DELETE TRANSACTION - Use existing connection
+        // DELETE TRANSACTION 
         public void DeleteTransaction<T>(string filterColumn, object filterValue, NpgsqlConnection conn)
         {
             var type = typeof(T);
             var tableAttr = type.GetCustomAttribute<TableAttribute>();
 
-            // Formatting value for SQL
             string formattedValue = (filterValue is string s) ? $"'{s.Replace("'", "''")}'" : filterValue.ToString();
 
             string sql = $"DELETE FROM {tableAttr.Name} WHERE {filterColumn} = {formattedValue};";

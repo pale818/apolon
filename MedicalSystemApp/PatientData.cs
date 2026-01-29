@@ -14,14 +14,14 @@ namespace MedicalSystemApp
         [Column("id")]
         public int Id { get; set; }
 
-        [Column("first_name", DbType = "VARCHAR(100)")] // Added DbType
+        [Column("first_name", DbType = "VARCHAR(100)")] 
         public string FirstName { get; set; }
 
-        [Column("age", DbType = "INT")] // Added DbType
+        [Column("age", DbType = "INT")] 
         public int Age { get; set; }
 
         [Column("email", IsUnique = true, IsNullable = false)]
-        public string Email { get; set; } // No two patients can have the same email
+        public string Email { get; set; } 
 
         // for testing auto migration and rollback
         //[Column("phone_number")] public string PhoneNumber { get; set; }

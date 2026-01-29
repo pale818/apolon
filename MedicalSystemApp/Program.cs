@@ -24,24 +24,12 @@ namespace MedicalSystemApp
             string dockerStr = config.GetConnectionString("DockerConnection");
             string supabaseStr = config.GetConnectionString("SupabaseConnection");
 
-            // 2. Initialize the Manager
             string currentConnString = supabaseStr;
             DatabaseManager db = new DatabaseManager(currentConnString);
 
 
             Console.WriteLine("Checking connection and creating table...");
 
-            /*3. THE MOMENT OF TRUTH:
-            // This reads your Patient class attributes and creates the table
-            db.CreateTableFromClass<Patient>();
-
-            Console.WriteLine("Press any key to exit...");
-            Console.ReadKey();*/
-
-
-
-
-            //COMMAND LINE INTERFACE:
             bool keepRunning = true;
 
             while (keepRunning)
@@ -49,7 +37,7 @@ namespace MedicalSystemApp
 
                 Console.Clear(); 
                 Console.WriteLine("\n--- CUSTOM ORM MENU ---");
-                Console.WriteLine("1. Create Table");
+                Console.WriteLine("1. Create Tables");
                 Console.WriteLine("2. Insert");
                 Console.WriteLine("3. Update ");
                 Console.WriteLine("4. Delete ");
@@ -103,7 +91,6 @@ namespace MedicalSystemApp
                             Console.Write("Enter OIB (optional): ");
                             string oib = Console.ReadLine();
 
-                            // 1) insert PatientData first
                             int dataId = db.Insert(new PatientData
                             {
                                 FirstName = name,
@@ -119,7 +106,6 @@ namespace MedicalSystemApp
                                 break;
                             }
 
-                            // 2) insert Patient referencing PatientData
                             int patientId = db.Insert(new Patient
                             {
                                 PatientDataId = dataId
@@ -142,14 +128,12 @@ namespace MedicalSystemApp
                             Console.Write("Enter Doctor Notes: ");
                             string notes = Console.ReadLine();
 
-                            // Showing the user the numeric options for the required medical types
                             Console.WriteLine("Select Checkup Type:");
                             Console.WriteLine("0:GP, 1:BLOOD, 2:X_RAY, 3:CT, 4:MRI, 5:ULTRA, 6:EKG, 7:ECHO, 8:EYE, 9:DERM, 10:DENTA, 11:MAMMO, 12:EEG");
                             Console.Write("Enter choice (0-12): ");
 
                             if (int.TryParse(Console.ReadLine(), out int enumIndex) && Enum.IsDefined(typeof(CheckupType), enumIndex))
                             {
-                                // Cast the integer directly to the Enum type
                                 CheckupType selectedType = (CheckupType)enumIndex;
 
                                 db.Insert(new Checkup
@@ -172,11 +156,19 @@ namespace MedicalSystemApp
                             int pId = int.Parse(Console.ReadLine());
                             Console.Write("Enter Medication ID: ");        
                             int medId = int.Parse(Console.ReadLine());
-                            Console.Write("Dosage: ");
-                            float dose = float.Parse(Console.ReadLine());
-                            Console.Write("Start Date: ");
-                            DateTime startDate = DateTime.Parse(Console.ReadLine());
-                            db.Insert(new Prescription { PatientId = pId, MedicationId = medId, Dosage = dose, StartDate = startDate });
+                            if (db.ExistsById<Medication>("id", medId))
+                            {
+                                Console.Write("Dosage: ");
+                                float dose = float.Parse(Console.ReadLine());
+                                Console.Write("Start Date: ");
+                                DateTime startDate = DateTime.Parse(Console.ReadLine());
+                                db.Insert(new Prescription { PatientId = pId, MedicationId = medId, Dosage = dose, StartDate = startDate });
+                            }
+                            else
+                            {
+                                Console.WriteLine("Medication does not exist. Exiting.");
+                            }
+                                
                         }
                         else if (typeChoice == "D")
                         {
@@ -237,7 +229,6 @@ namespace MedicalSystemApp
                             Console.Write("Enter Checkup ID to update: ");
                             int id = int.Parse(Console.ReadLine());
 
-                            // Step 1: Fetch existing
                             var checkup = db.GetWithFilter<Checkup>("id", id).FirstOrDefault();
                             if (checkup == null) { Console.WriteLine("Checkup not found."); break; }
 
@@ -260,17 +251,27 @@ namespace MedicalSystemApp
                             Console.Write("Enter Prescription ID to update: ");
                             int id = int.Parse(Console.ReadLine());
 
-                            // Step 1: Fetch existing
                             var pres = db.GetWithFilter<Prescription>("id", id).FirstOrDefault();
                             if (pres == null) { Console.WriteLine("Prescription not found."); break; }
+
 
                             Console.WriteLine("1. Update Medication ID| 2. Update Dosage | 3. Update Both");
                             string part = Console.ReadLine();
 
-                            if (part == "1" || part == "3") { Console.Write("New Medication: "); pres.MedicationId = int.Parse(Console.ReadLine()); }
+                            if (part == "1" || part == "3") { 
+                                Console.Write("New Medication: "); pres.MedicationId = int.Parse(Console.ReadLine());   
+                            }
+
                             if (part == "2" || part == "3") { Console.Write("New Dosage: "); pres.Dosage = float.Parse(Console.ReadLine()); }
 
-                            db.Update(pres);
+                            if (!db.ExistsById<Medication>("id", pres.MedicationId))
+                            {
+                                Console.WriteLine("Medication does not exist. Exiting.");
+                            }
+                            else
+                            {
+                                db.Update(pres);
+                            }
                         }
                         else if (updChoice == "D")
                         {
@@ -304,13 +305,10 @@ namespace MedicalSystemApp
                         {
                             if (delChoice == "A")
                             {
-                                // Find patient to get PatientDataId
                                 var patient = db.GetWithFilter<Patient>("id", idDel).FirstOrDefault();
                                 if (patient == null) { Console.WriteLine("Patient not found."); break; }
 
-                                // Optional: also delete checkups/prescriptions (recommended)
-                                // If you already have transaction delete case 10, you can keep this simple,
-                                // but here's the full safe delete:
+                               //delete all record of patient 
                                 db.ExecuteTransaction(conn =>
                                 {
                                     db.DeleteTransaction<Prescription>("patient_id", idDel, conn);
@@ -322,10 +320,6 @@ namespace MedicalSystemApp
 
                                 Console.WriteLine("Patient + PatientData deleted (and history).");
                             }
-                            else if (delChoice == "B") db.Delete(new Checkup { Id = idDel });
-                            else if (delChoice == "C") db.Delete(new Prescription { Id = idDel });
-                            else if (delChoice == "D") db.Delete(new Medication { Id = idDel });
-
                             else if (delChoice == "B") db.Delete(new Checkup { Id = idDel });
                             else if (delChoice == "C") db.Delete(new Prescription { Id = idDel });
                             else if (delChoice == "D") db.Delete(new Medication { Id = idDel });
@@ -348,7 +342,6 @@ namespace MedicalSystemApp
                                 break;
                             }
 
-                            // Fetch all PatientData rows for these patients in ONE query
                             var dataIds = patients.Select(x => x.PatientDataId).Distinct().ToList();
                             var patientDataRows = db.GetWhereIn<PatientData>("id", dataIds);
 
@@ -391,7 +384,6 @@ namespace MedicalSystemApp
                         Console.WriteLine("Enter Name to search:");
                         string searchName = Console.ReadLine();
 
-                        // Search in PatientData (not Patient)
                         var filteredData = db.GetWithFilter<PatientData>("first_name", searchName, "age");
 
                         if (filteredData == null || !filteredData.Any())
@@ -400,11 +392,9 @@ namespace MedicalSystemApp
                             break;
                         }
 
-                        // Find Patient rows that point to these PatientData ids
                         var pdIds = filteredData.Select(x => x.Id).Distinct().ToList();
                         var matchingPatients = db.GetWhereIn<Patient>("patient_data_id", pdIds);
 
-                        // Map Patient by PatientDataId for quick lookup
                         var patientByDataId = matchingPatients.ToDictionary(x => x.PatientDataId, x => x);
 
                         foreach (var pd in filteredData)
@@ -421,16 +411,14 @@ namespace MedicalSystemApp
                         break;
 
 
-                    case "7": // LAZY LOADING DEMO (Patient + PatientData + Checkups + Prescriptions + Medication lookup)
+                    case "7": 
                         Console.Write("Enter Patient ID for LAZY fetch: ");
                         if (int.TryParse(Console.ReadLine(), out int lazyId))
                         {
-                            // STEP 1: Fetch ONLY the Patient row
                             var p = db.GetWithFilter<Patient>("id", lazyId).FirstOrDefault();
 
                             if (p != null)
                             {
-                                // STEP 1.1: Fetch ONLY the PatientData row (1:1)
                                 var pd = db.GetWithFilter<PatientData>("id", p.PatientDataId).FirstOrDefault();
                                 if (pd == null)
                                 {
@@ -446,7 +434,6 @@ namespace MedicalSystemApp
                                 Console.WriteLine($"BloodType: {pd.BloodType ?? "-"}");
                                 Console.WriteLine($"OIB: {pd.Oib ?? "-"}");
 
-                                // Show that navigation collections start empty (lazy)
                                 Console.WriteLine($"\nCheckups currently in memory: {p.Checkups.Count}");
                                 Console.WriteLine($"Prescriptions currently in memory: {p.Prescriptions.Count}");
 
@@ -493,7 +480,6 @@ namespace MedicalSystemApp
                                     {
                                         foreach (var pr in p.Prescriptions)
                                         {
-                                            // Lazy resolve medication on demand (1 query per prescription)
                                             string medName = $"MedicationId={pr.MedicationId}";
                                             var med = db.GetWithFilter<Medication>("id", pr.MedicationId).FirstOrDefault();
                                             if (med != null) medName = med.Name;
@@ -519,11 +505,10 @@ namespace MedicalSystemApp
                         break;
 
 
-                    case "8": // Eager Loading (Patient + Checkups + Prescriptions) + PatientData (1:1) + Medication names via IN
+                    case "8": 
                         Console.Write("Enter Patient ID for Eager JOIN fetch: ");
                         if (int.TryParse(Console.ReadLine(), out int eagerId))
                         {
-                            // This still joins Patient->Checkups->Prescriptions
                             var p = db.GetEagerJoined<Patient, Checkup, Prescription>(eagerId, "patient_id", "patient_id");
 
                             if (p != null)
@@ -545,7 +530,6 @@ namespace MedicalSystemApp
                                 Console.WriteLine($"\nCheckups found: {p.Checkups.Count}");
                                 Console.WriteLine($"Prescriptions found: {p.Prescriptions.Count}");
 
-                                // Fetch medications used in prescriptions (single query via IN)
                                 var medNameById = new Dictionary<int, string>();
                                 if (p.Prescriptions != null && p.Prescriptions.Any())
                                 {
@@ -581,7 +565,7 @@ namespace MedicalSystemApp
 
                     case "9":
                         {
-                            Console.WriteLine("--- TRANSACTION: REGISTER NEW PATIENT (1:1) + FIRST CHECKUP ---");
+                            Console.WriteLine("--- TRANSACTION: REGISTER NEW PATIENT + FIRST CHECKUP ---");
 
                             Console.Write("Patient Name: ");
                             string name = Console.ReadLine();
@@ -613,7 +597,6 @@ namespace MedicalSystemApp
                             {
                                 db.ExecuteTransaction(conn =>
                                 {
-                                    // 1) Insert PatientData
                                     var pd = new PatientData
                                     {
                                         FirstName = name,
@@ -625,7 +608,6 @@ namespace MedicalSystemApp
 
                                     int patientDataId = db.InsertTransaction(pd, conn);
 
-                                    // 2) Insert Patient that points to PatientData (1:1)
                                     var p = new Patient
                                     {
                                         PatientDataId = patientDataId
@@ -633,7 +615,6 @@ namespace MedicalSystemApp
 
                                     int patientId = db.InsertTransaction(p, conn);
 
-                                    // 3) Insert Checkup linked to Patient
                                     var c = new Checkup
                                     {
                                         PatientId = patientId,
@@ -712,7 +693,6 @@ namespace MedicalSystemApp
                     case "11":
                         {
                             var migrator = new MigrationManager(currentConnString);
-                            // Demonstration: Adding a column that wasn't there before
                             string sql = "ALTER TABLE patient_data ADD COLUMN IF NOT EXISTS phone_number VARCHAR(20);";
                             migrator.ApplyMigration("20251226_AddPhoneToPatientData", sql);
                         }
@@ -720,13 +700,10 @@ namespace MedicalSystemApp
                     
                     case "12":
                         {
-                            //var migrator = new MigrationManager(myConnectionString);
-                            //migrator.RollbackLastMigration();
-
+                           
                             Console.WriteLine("\n--- ROLLING BACK LAST MIGRATION ---");
                             var migrator = new MigrationManager(currentConnString);
 
-                            // This is the SQL required to reverse the specific change made in Case 10
                             string undoSql = "ALTER TABLE patient_data DROP COLUMN IF EXISTS phone_number;";
 
                             migrator.RollbackLastMigration(undoSql);
@@ -755,12 +732,11 @@ namespace MedicalSystemApp
                         break;
 
                     case "14":
-                        Console.WriteLine("\n--- CHECKING FOR MODEL CHANGES (Auto-Migration) ---");
+                        Console.WriteLine("\n--- AUTO MIGRATION ---");
                         try
                         {
                             var migrator = new MigrationManager(currentConnString);
 
-                            // This will check each class against its respective table in the DB
                             Console.WriteLine("Checking PatientData...");
                             migrator.AutoMigrate<PatientData>();
 
@@ -799,6 +775,8 @@ namespace MedicalSystemApp
                 }
 
             }
+
+
 
 
 
